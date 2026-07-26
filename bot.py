@@ -827,19 +827,25 @@ def create_telegram_app():
 
 
 def run_telegram_bot():
-    application = create_telegram_app()
-    print("Bot is running...")
-    application.run_polling()
+    try:
+        application = create_telegram_app()
+        print("Bot is running... Telegram polling starting")
+        application.run_polling()
+    except Exception as e:
+        logging.exception(f"Telegram polling failed: {e}")
 
 
 def start_bot_in_thread():
     global bot_thread, bot_started
     with bot_thread_lock:
         if bot_started:
+            print("Telegram bot thread already started")
             return
+        print("Starting Telegram bot thread...")
         bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
         bot_thread.start()
         bot_started = True
+        print("Telegram bot thread started")
 
 
 @flask_app.before_request
