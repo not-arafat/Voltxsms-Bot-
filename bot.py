@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -24,9 +25,20 @@ from firebase_admin import credentials, firestore
 CRED_PATH = "serviceAccountKey.json"
 load_dotenv()
 SERVICE_ACCOUNT_KEY_JSON = os.environ.get("SERVICE_ACCOUNT_KEY_JSON")
+SERVICE_ACCOUNT_KEY_B64 = os.environ.get("SERVICE_ACCOUNT_KEY_B64")
 
 if not firebase_admin._apps:
-    if SERVICE_ACCOUNT_KEY_JSON:
+    if SERVICE_ACCOUNT_KEY_B64:
+        try:
+            decoded = base64.b64decode(SERVICE_ACCOUNT_KEY_B64).decode("utf-8")
+            cred_data = json.loads(decoded)
+            cred = credentials.Certificate(cred_data)
+            firebase_admin.initialize_app(cred)
+            db = firestore.client()
+        except Exception as e:
+            db = None
+            logging.error(f"Firebase init failed from base64 env: {e}")
+    elif SERVICE_ACCOUNT_KEY_JSON:
         try:
             cred_data = json.loads(SERVICE_ACCOUNT_KEY_JSON)
             cred = credentials.Certificate(cred_data)
@@ -34,14 +46,14 @@ if not firebase_admin._apps:
             db = firestore.client()
         except Exception as e:
             db = None
-            logging.error(f"Firebase init failed from env: {e}")
+            logging.error(f"Firebase init failed from env JSON: {e}")
     elif os.path.exists(CRED_PATH):
         cred = credentials.Certificate(CRED_PATH)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
     else:
         db = None
-        logging.warning("serviceAccountKey.json পাওয়া যায়নি এবং SERVICE_ACCOUNT_KEY_JSON সেট করা হয়নি! ফায়ারবেস ব্যাকআপ ছাড়া বট চলবে।")
+        logging.warning("serviceAccountKey.json পাওয়া যায়নি এবং SERVICE_ACCOUNT_KEY_* সেট করা হয়নি! ফায়ারবেস ব্যাকআপ ছাড়া বট চলবে।")
 
 # --- DEFAULT CONFIGURATION ---
 BOT_TOKEN = "8345617098:AAF2vkdIWCr9qphXFQI1YEPb4fvp2XqFee4"
