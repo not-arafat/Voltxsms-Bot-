@@ -846,6 +846,8 @@ def start_bot_in_thread():
 def ensure_bot_running():
     start_bot_in_thread()
 
+# Run bot thread on module import so Render starts polling immediately.
+start_bot_in_thread()
 
 if __name__ == "__main__":
     start_bot_in_thread()
