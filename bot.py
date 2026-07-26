@@ -27,32 +27,59 @@ load_dotenv()
 SERVICE_ACCOUNT_KEY_JSON = os.environ.get("SERVICE_ACCOUNT_KEY_JSON")
 SERVICE_ACCOUNT_KEY_B64 = os.environ.get("SERVICE_ACCOUNT_KEY_B64")
 
+def _decode_base64_payload(value: str) -> str:
+    try:
+        decoded_bytes = base64.b64decode(value, validate=True)
+        return decoded_bytes.decode("utf-8")
+    except Exception as e:
+        logging.debug(f"Base64 decode failed: {e}")
+        return value
+
+
+def _parse_json_payload(value: str):
+    try:
+        return json.loads(value)
+    except Exception as e:
+        logging.debug(f"JSON parse failed: {e}")
+        return None
+
+
+def _load_firebase_credentials_from_env(value: str, is_base64: bool = False):
+    if not value:
+        return None
+
+    payload = value
+    if is_base64:
+        payload = _decode_base64_payload(value)
+
+    cred_data = _parse_json_payload(payload)
+    if cred_data is None and not is_base64:
+        return None
+    if cred_data is None and is_base64:
+        cred_data = _parse_json_payload(value)
+
+    if cred_data is None:
+        return None
+
+    try:
+        cred = credentials.Certificate(cred_data)
+        firebase_admin.initialize_app(cred)
+        return firestore.client()
+    except Exception as e:
+        logging.error(f"Firebase init failed from {'base64' if is_base64 else 'raw'} env: {e}")
+        return None
+
 if not firebase_admin._apps:
-    if SERVICE_ACCOUNT_KEY_B64:
-        try:
-            decoded = base64.b64decode(SERVICE_ACCOUNT_KEY_B64).decode("utf-8")
-            cred_data = json.loads(decoded)
-            cred = credentials.Certificate(cred_data)
-            firebase_admin.initialize_app(cred)
-            db = firestore.client()
-        except Exception as e:
-            db = None
-            logging.error(f"Firebase init failed from base64 env: {e}")
-    elif SERVICE_ACCOUNT_KEY_JSON:
-        try:
-            cred_data = json.loads(SERVICE_ACCOUNT_KEY_JSON)
-            cred = credentials.Certificate(cred_data)
-            firebase_admin.initialize_app(cred)
-            db = firestore.client()
-        except Exception as e:
-            db = None
-            logging.error(f"Firebase init failed from env JSON: {e}")
-    elif os.path.exists(CRED_PATH):
+    db = _load_firebase_credentials_from_env(SERVICE_ACCOUNT_KEY_B64, is_base64=True)
+    if db is None:
+        db = _load_firebase_credentials_from_env(SERVICE_ACCOUNT_KEY_JSON, is_base64=False)
+
+    if db is None and os.path.exists(CRED_PATH):
         cred = credentials.Certificate(CRED_PATH)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-    else:
-        db = None
+
+    if db is None:
         logging.warning("serviceAccountKey.json পাওয়া যায়নি এবং SERVICE_ACCOUNT_KEY_* সেট করা হয়নি! ফায়ারবেস ব্যাকআপ ছাড়া বট চলবে।")
 
 # --- DEFAULT CONFIGURATION ---
@@ -815,7 +842,7 @@ def start_bot_in_thread():
         bot_started = True
 
 
-@flask_app.before_first_request
+@flask_app.before_request
 def ensure_bot_running():
     start_bot_in_thread()
 
