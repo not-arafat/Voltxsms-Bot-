@@ -1,0 +1,6 @@
+python-telegram-bot>=20.7
+aiohttp>=3.10.0
+flask>=3.0.2
+gunicorn>=21.2.0
+firebase-admin>=6.5.0
+python-dotenv>=1.0.0
